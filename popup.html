@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Gemini Automation Pro</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="dark-mode">
+  <div class="container">
+    <header>
+      <h1>Gemini Automation Pro</h1>
+      <div class="status-indicator">
+        <span id="globalStatus">Ready</span>
+      </div>
+    </header>
+
+    <section class="input-section">
+      <div class="tabs">
+        <button class="tab active" data-target="text-input">Text</button>
+        <button class="tab" data-target="file-input">File (.txt/.csv)</button>
+      </div>
+
+      <div id="text-input" class="tab-content active">
+        <textarea id="promptTextarea" placeholder="Enter prompts (one per line)..."></textarea>
+        <div class="options">
+          <label>Platform:
+            <select id="platformSelect">
+              <option value="gemini">Gemini</option>
+              <option value="business">Gemini Business</option>
+            </select>
+          </label>
+          <label>Type:
+            <select id="typeSelect">
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+            </select>
+          </label>
+        </div>
+        <button id="addTasksBtn" class="primary-btn">Add to Queue</button>
+      </div>
+
+      <div id="file-input" class="tab-content">
+        <p class="help-text">CSV format: prompt,platform(gemini/business),type(image/video)</p>
+        <p class="help-text">TXT format: one prompt per line (uses default options below)</p>
+        <input type="file" id="fileUpload" accept=".txt,.csv">
+        <div class="options">
+          <label>Default Platform:
+            <select id="defaultPlatformSelect">
+              <option value="gemini">Gemini</option>
+              <option value="business">Gemini Business</option>
+            </select>
+          </label>
+          <label>Default Type:
+            <select id="defaultTypeSelect">
+              <option value="image">Image</option>
+              <option value="video">Video</option>
+            </select>
+          </label>
+        </div>
+      </div>
+    </section>
+
+    <section class="controls">
+      <button id="startBtn" class="action-btn" title="Start/Resume"><span class="icon">▶</span> Generate</button>
+      <button id="pauseBtn" class="action-btn" title="Pause"><span class="icon">⏸</span> Pause</button>
+      <button id="stopBtn" class="action-btn danger" title="Stop"><span class="icon">⏹</span> Stop</button>
+      <button id="resetBtn" class="action-btn warning" title="Reset All"><span class="icon">🔄</span> Reset</button>
+      <button id="skipBtn" class="action-btn" title="Skip Current"><span class="icon">⏭</span> Skip</button>
+    </section>
+
+    <section class="dashboard">
+      <h2>Live Metrics</h2>
+      <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+        <span class="progress-text" id="progressText">0%</span>
+      </div>
+      <div class="metrics-grid">
+        <div class="metric"><span class="label">Total:</span> <span id="metricTotal" class="value">0</span></div>
+        <div class="metric"><span class="label">Completed:</span> <span id="metricCompleted" class="value success">0</span></div>
+        <div class="metric"><span class="label">Failed:</span> <span id="metricFailed" class="value danger">0</span></div>
+        <div class="metric"><span class="label">Skipped:</span> <span id="metricSkipped" class="value warning">0</span></div>
+        <div class="metric"><span class="label">Downloaded:</span> <span id="metricDownloaded" class="value success">0</span></div>
+      </div>
+      <div class="current-task">
+        <strong>Running:</strong> <span id="currentTaskDisplay">None</span>
+      </div>
+    </section>
+
+    <section class="logs">
+      <div class="logs-header">
+        <h2>Error Logs</h2>
+        <button id="exportLogsBtn" class="small-btn">Export .txt</button>
+      </div>
+      <div id="logContainer" class="log-container">
+        <!-- Logs will appear here -->
+      </div>
+    </section>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

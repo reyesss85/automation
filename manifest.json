@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Gemini Automation Pro",
+  "version": "1.0.0",
+  "description": "Automate content generation on Gemini platforms",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Open Gemini Automation"
+  },
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "downloads",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://gemini.google.com/*",
+    "https://business.gemini.google/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://gemini.google.com/*",
+        "https://business.gemini.google/*"
+      ],
+      "js": ["content.js"]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/*"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}
