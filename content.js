@@ -67,11 +67,18 @@ async function executeJob(job) {
     log("Clicking send button");
     sendBtn.click();
 
-    // 5. Wait for generation to finish and extract results
-    const mediaUrls = await waitForResults(job.type, 120000); // Wait up to 2 mins
+    // Extract existing media URLs before sending, to calculate delta later
+    const beforeMediaUrls = await extractAllMediaUrls(document.body, job.type);
 
-    log(`Successfully generated and extracted ${mediaUrls.length} ${job.type}s`);
-    chrome.runtime.sendMessage({ action: 'jobCompleted', data: { mediaUrls, jobType: job.type } });
+    // 5. Wait for generation to finish and extract results
+    const newMediaUrls = await waitForResultsAndExtractNew(job.type, beforeMediaUrls, 120000); // Wait up to 2 mins
+
+    if (newMediaUrls.length === 0) {
+      throw new Error(`No new ${job.type} media found in the generated response.`);
+    }
+
+    log(`Successfully generated and extracted ${newMediaUrls.length} ${job.type}s`);
+    chrome.runtime.sendMessage({ action: 'jobCompleted', data: { mediaUrls: newMediaUrls, jobType: job.type } });
 
   } catch (error) {
     log(`Job execution error: ${error.message}`, 'error');
@@ -112,9 +119,8 @@ function isElementVisible(el) {
   return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.opacity !== '0';
 }
 
-async function waitForResults(type, timeout = 120000) {
+async function waitForResultsAndExtractNew(type, beforeUrls, timeout = 120000) {
   const start = Date.now();
-  let latestResponseContainer = null;
   let generationStarted = false;
 
   // Wait for the loading state to appear, then disappear
@@ -123,19 +129,30 @@ async function waitForResults(type, timeout = 120000) {
     const isGenerating = document.querySelector('button[aria-label="Stop generating"]') ||
                          document.querySelector('.loading-indicator, spark-icon');
 
-    if (isGenerating) {
+    // Additionally check if the send button is disabled or input area is locked
+    const sendBtn = document.querySelector('button[aria-label="Send message"]');
+    const isSending = sendBtn && sendBtn.disabled;
+
+    if (isGenerating || isSending) {
       generationStarted = true;
       log("Generation in progress...");
       await sleep(2000);
     } else if (generationStarted) {
       // Generation stopped, find the last response
       log("Generation finished, parsing results...");
-      await sleep(2000); // Extra buffer for DOM to settle
+      await sleep(3000); // Extra buffer for DOM to settle and images to load
 
-      const responses = document.querySelectorAll('.message-content, .model-response, [data-message-author-role="model"]');
-      if (responses.length > 0) {
-        latestResponseContainer = responses[responses.length - 1];
-        break;
+      const currentUrls = await extractAllMediaUrls(document.body, type);
+      const newUrls = currentUrls.filter(url => !beforeUrls.includes(url));
+
+      if (newUrls.length > 0) {
+        return newUrls;
+      } else {
+        // Sometimes it takes a moment longer for media to appear after "generation" state ends
+        log("No new media found yet, waiting 5 more seconds...");
+        await sleep(5000);
+        const finalUrls = await extractAllMediaUrls(document.body, type);
+        return finalUrls.filter(url => !beforeUrls.includes(url));
       }
     } else {
       // Keep waiting for generation to start
@@ -143,32 +160,39 @@ async function waitForResults(type, timeout = 120000) {
     }
   }
 
-  if (!latestResponseContainer) {
-    throw new Error("Timeout waiting for response generation.");
-  }
-
-  // Extract media
-  return extractMedia(latestResponseContainer, type);
+  throw new Error("Timeout waiting for response generation.");
 }
 
-async function extractMedia(container, type) {
+async function extractAllMediaUrls(container, type) {
   const urls = [];
 
   if (type === 'image') {
-    // Find image elements inside the response container
+    // Find image elements
     const imgs = container.querySelectorAll('img');
     for (const img of imgs) {
       // Exclude avatar icons, small UI elements
-      if (img.width > 100 && img.height > 100 && img.src) {
-        // Some images might be blob URLs or base64
-        if (img.src.startsWith('http') || img.src.startsWith('blob:') || img.src.startsWith('data:image')) {
-          urls.push(img.src);
+      // Ignore tiny images or icons (often < 50px)
+      if (img.src && !img.src.includes('avatar') && !img.src.includes('icon')) {
+         if (img.src.startsWith('http') || img.src.startsWith('blob:') || img.src.startsWith('data:image')) {
+            urls.push(img.src);
+         }
+      }
+    }
+
+    // Sometimes images are background images
+    const allDivs = container.querySelectorAll('div');
+    for (const div of allDivs) {
+      const bg = window.getComputedStyle(div).backgroundImage;
+      if (bg && bg !== 'none' && bg.includes('url(')) {
+        const match = bg.match(/url\(['"]?(.*?)['"]?\)/);
+        if (match && match[1] && (match[1].startsWith('http') || match[1].startsWith('blob:'))) {
+          urls.push(match[1]);
         }
       }
     }
 
-    // Check for explicit download buttons in the Gemini UI for images
-    const downloadBtns = container.querySelectorAll('button[aria-label*="Download"] a, a[download]');
+    // Check for explicit download links that might contain media
+    const downloadBtns = container.querySelectorAll('a[download]');
     for (const btn of downloadBtns) {
       if (btn.href) urls.push(btn.href);
     }
@@ -187,11 +211,5 @@ async function extractMedia(container, type) {
   }
 
   // Deduplicate
-  const uniqueUrls = [...new Set(urls)];
-
-  if (uniqueUrls.length === 0) {
-    throw new Error(`No ${type} media found in the generated response.`);
-  }
-
-  return uniqueUrls;
+  return [...new Set(urls)];
 }

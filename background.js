@@ -15,8 +15,17 @@ const URLS = {
 // Initialize
 chrome.runtime.onInstalled.addListener(async () => {
   await Storage.resetState();
+  // Ensure the side panel is enabled
+  if (chrome.sidePanel) {
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
+  }
   Logger.info('Extension installed and state reset.');
 });
+
+// Enable opening side panel via icon click
+if (chrome.sidePanel) {
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
+}
 
 // Message listener from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -68,14 +77,8 @@ async function stopProcessing() {
     await Storage.updateJob(currentJobId, { status: 'pending' });
     currentJobId = null;
   }
-  if (activeTabId) {
-    try {
-      await chrome.tabs.remove(activeTabId);
-    } catch (e) {
-      // Tab might already be closed
-    }
-    activeTabId = null;
-  }
+  // We no longer close the tab when stopping, just reset activeTabId
+  activeTabId = null;
   Logger.info('Queue stopped and execution cleared.');
 }
 
@@ -101,12 +104,7 @@ async function processNextJob() {
     isProcessing = false;
     Logger.info('Queue empty or all jobs completed.');
     await Storage.updateState({ isRunning: false });
-    if (activeTabId) {
-      try {
-        await chrome.tabs.remove(activeTabId);
-      } catch (e) {}
-      activeTabId = null;
-    }
+    activeTabId = null; // Do not close tab
     return;
   }
 
@@ -148,33 +146,20 @@ async function processNextJob() {
 }
 
 async function ensureTab(url) {
-  if (activeTabId) {
-    try {
-      const tab = await chrome.tabs.get(activeTabId);
-      if (tab.url && tab.url.startsWith(url)) {
-        // Tab is correct and alive
-        await chrome.tabs.update(activeTabId, { active: true });
-        return;
-      }
-    } catch (e) {
-      // Tab closed or error
-    }
+  // Get the currently active tab in the current window
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  if (!activeTab || !activeTab.url) {
+    throw new Error("No active tab found. Please open Gemini manually.");
   }
 
-  // Create new tab
-  return new Promise((resolve) => {
-    chrome.tabs.create({ url, active: true }, (tab) => {
-      activeTabId = tab.id;
-      // Wait for page load
-      chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-        if (tabId === tab.id && info.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          // Small buffer for SPA frameworks to initialize
-          setTimeout(resolve, 2000);
-        }
-      });
-    });
-  });
+  // Check if the current tab is on the correct Gemini platform
+  if (!activeTab.url.startsWith("https://gemini.google.com") && !activeTab.url.startsWith("https://business.gemini.google")) {
+    throw new Error(`Current tab is not a Gemini page (${url}). Please navigate to Gemini first.`);
+  }
+
+  activeTabId = activeTab.id;
+  return activeTabId;
 }
 
 async function handleJobCompleted(data) {

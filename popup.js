@@ -167,20 +167,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Status
     if (state.isRunning) {
-      globalStatus.textContent = 'Running';
+      globalStatus.innerHTML = '⚡ Process Running';
       globalStatus.style.color = 'var(--success-color)';
       startBtn.disabled = true;
       pauseBtn.disabled = false;
+      stopBtn.disabled = false;
     } else if (state.isPaused) {
-      globalStatus.textContent = 'Paused';
+      globalStatus.innerHTML = '⏸ Process Paused';
       globalStatus.style.color = 'var(--warning-color)';
       startBtn.disabled = false;
       pauseBtn.disabled = true;
+      stopBtn.disabled = false;
     } else {
-      globalStatus.textContent = 'Ready';
+      globalStatus.innerHTML = '🛑 Process Stopped';
       globalStatus.style.color = 'var(--text-color)';
       startBtn.disabled = false;
       pauseBtn.disabled = true;
+      stopBtn.disabled = true;
     }
 
     // Metrics

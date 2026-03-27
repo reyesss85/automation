@@ -4,15 +4,18 @@
   "version": "1.0.0",
   "description": "Automate content generation on Gemini platforms",
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Open Gemini Automation"
+  },
+  "side_panel": {
+    "default_path": "popup.html"
   },
   "permissions": [
     "storage",
     "scripting",
     "activeTab",
     "downloads",
-    "tabs"
+    "tabs",
+    "sidePanel"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
