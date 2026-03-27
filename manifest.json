@@ -4,18 +4,14 @@
   "version": "1.0.0",
   "description": "Automate content generation on Gemini platforms",
   "action": {
-    "default_title": "Open Gemini Automation"
-  },
-  "side_panel": {
-    "default_path": "popup.html"
+    "default_title": "Toggle Gemini Automation Sidebar"
   },
   "permissions": [
     "storage",
     "scripting",
     "activeTab",
     "downloads",
-    "tabs",
-    "sidePanel"
+    "tabs"
   ],
   "host_permissions": [
     "https://gemini.google.com/*",
@@ -36,8 +32,17 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["assets/*"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "popup.html",
+        "popup.css",
+        "popup.js",
+        "storage.js",
+        "logger.js"
+      ],
+      "matches": [
+        "https://gemini.google.com/*",
+        "https://business.gemini.google/*"
+      ]
     }
   ]
 }

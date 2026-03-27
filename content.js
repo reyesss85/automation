@@ -1,8 +1,13 @@
 // content.js
 // Runs in the context of the Gemini web pages
 
+let sidebarIframe = null;
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'executeJob') {
+  if (message.action === 'toggleSidebar') {
+    toggleSidebar();
+    sendResponse({ toggled: true });
+  } else if (message.action === 'executeJob') {
     log('Received job request in content script');
     // We run the async process but return true to keep the message channel open
     executeJob(message.job).catch(e => {
@@ -12,6 +17,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 });
+
+function toggleSidebar() {
+  if (sidebarIframe) {
+    sidebarIframe.remove();
+    sidebarIframe = null;
+  } else {
+    sidebarIframe = document.createElement('iframe');
+    sidebarIframe.src = chrome.runtime.getURL('popup.html');
+    sidebarIframe.style.cssText = `
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 400px;
+      height: 100vh;
+      border: none;
+      border-left: 1px solid #333;
+      z-index: 999999;
+      box-shadow: -5px 0 15px rgba(0,0,0,0.5);
+      background-color: #121212;
+    `;
+    document.body.appendChild(sidebarIframe);
+  }
+}
 
 function log(msg, level = 'info') {
   chrome.runtime.sendMessage({ action: 'log', message: msg, level });
@@ -142,15 +170,28 @@ async function waitForResultsAndExtractNew(type, beforeUrls, timeout = 120000) {
       log("Generation finished, parsing results...");
       await sleep(3000); // Extra buffer for DOM to settle and images to load
 
-      const currentUrls = await extractAllMediaUrls(document.body, type);
-      const newUrls = currentUrls.filter(url => !beforeUrls.includes(url));
+      // Sometimes it takes a moment longer for media to appear after "generation" state ends
+      log("Checking for new media...");
+
+      // Poll for up to 30 seconds for new media (images might be lazy loaded)
+      let waitStart = Date.now();
+      let newUrls = [];
+
+      while (Date.now() - waitStart < 30000) {
+        const currentUrls = await extractAllMediaUrls(document.body, type);
+        newUrls = currentUrls.filter(url => !beforeUrls.includes(url));
+        if (newUrls.length > 0) {
+          break;
+        }
+        await sleep(2000);
+      }
 
       if (newUrls.length > 0) {
         return newUrls;
       } else {
-        // Sometimes it takes a moment longer for media to appear after "generation" state ends
-        log("No new media found yet, waiting 5 more seconds...");
-        await sleep(5000);
+        // Force a scroll to bottom to trigger lazy loading if needed
+        window.scrollTo(0, document.body.scrollHeight);
+        await sleep(2000);
         const finalUrls = await extractAllMediaUrls(document.body, type);
         return finalUrls.filter(url => !beforeUrls.includes(url));
       }
@@ -210,6 +251,38 @@ async function extractAllMediaUrls(container, type) {
     }
   }
 
-  // Deduplicate
-  return [...new Set(urls)];
+  // Deduplicate and process blob URLs
+  const uniqueUrls = [...new Set(urls)];
+  const processedUrls = [];
+
+  for (const url of uniqueUrls) {
+    if (url.startsWith('blob:')) {
+      try {
+        const base64Url = await blobToBase64(url);
+        if (base64Url) processedUrls.push(base64Url);
+      } catch (e) {
+        log(`Failed to process blob URL: ${url}`, 'warning');
+      }
+    } else {
+      processedUrls.push(url);
+    }
+  }
+
+  return processedUrls;
+}
+
+// Convert blob URL to base64 so background script can download it
+async function blobToBase64(blobUrl) {
+  try {
+    const response = await fetch(blobUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    throw error;
+  }
 }

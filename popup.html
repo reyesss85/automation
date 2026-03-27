@@ -8,8 +8,11 @@
 <body class="dark-mode">
   <div class="container">
     <header>
-      <h1>Gemini Automation Pro</h1>
-      <div class="status-indicator">
+      <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
+        <h1>Gemini Automation Pro</h1>
+        <button id="closeSidebarBtn" class="small-btn" style="background: transparent; color: var(--text-color); font-size: 1.2rem;">✖</button>
+      </div>
+      <div class="status-indicator" style="margin-top: 8px;">
         <span id="globalStatus">🛑 Process Stopped</span>
       </div>
     </header>

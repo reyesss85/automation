@@ -15,17 +15,20 @@ const URLS = {
 // Initialize
 chrome.runtime.onInstalled.addListener(async () => {
   await Storage.resetState();
-  // Ensure the side panel is enabled
-  if (chrome.sidePanel) {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
-  }
   Logger.info('Extension installed and state reset.');
 });
 
-// Enable opening side panel via icon click
-if (chrome.sidePanel) {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
-}
+// Click extension icon to toggle sidebar in active tab
+chrome.action.onClicked.addListener((tab) => {
+  if (tab.url.includes("gemini.google.com")) {
+    chrome.tabs.sendMessage(tab.id, { action: "toggleSidebar" }).catch(e => {
+      Logger.error("Failed to toggle sidebar: " + e.message);
+    });
+  } else {
+    // Optionally open Gemini if not on it
+    chrome.tabs.create({ url: URLS.gemini });
+  }
+});
 
 // Message listener from popup and content scripts
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -169,8 +172,12 @@ async function handleJobCompleted(data) {
 
   if (data.mediaUrls && data.mediaUrls.length > 0) {
     for (let i = 0; i < data.mediaUrls.length; i++) {
-      await downloadMedia(data.mediaUrls[i], data.jobType, currentJobId, i);
-      await Storage.incrementDownloaded();
+      try {
+        await downloadMedia(data.mediaUrls[i], data.jobType, currentJobId, i);
+        await Storage.incrementDownloaded();
+      } catch (error) {
+        Logger.error(`Failed to download item ${i+1}: ${error.message}`);
+      }
     }
   }
 

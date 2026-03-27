@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const resetBtn = document.getElementById('resetBtn');
   const skipBtn = document.getElementById('skipBtn');
   const exportLogsBtn = document.getElementById('exportLogsBtn');
+  const closeSidebarBtn = document.getElementById('closeSidebarBtn');
 
   // Load initial state
   await updateUI();
@@ -146,6 +147,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   skipBtn.addEventListener('click', () => {
     chrome.runtime.sendMessage({ action: 'skipCurrent' });
   });
+
+  if (closeSidebarBtn) {
+    closeSidebarBtn.addEventListener('click', () => {
+      // Send message to content script to remove iframe
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        if (tabs[0]) {
+          chrome.tabs.sendMessage(tabs[0].id, { action: "toggleSidebar" });
+        }
+      });
+    });
+  }
 
   exportLogsBtn.addEventListener('click', async () => {
     const state = await Storage.getState();
